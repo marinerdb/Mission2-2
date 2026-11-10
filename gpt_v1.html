@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>따라 그리기 연습장</title>
+<style>
+:root{--paper:#f4eee2;--ink:#40382f;--muted:#897f70;--line:#d8cdbb;--accent:#a76f50;--panel:#fffdf9}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:system-ui,-apple-system,"Apple SD Gothic Neo","Malgun Gothic",sans-serif}
+header{max-width:1120px;margin:0 auto;padding:30px 22px 18px}
+h1{font-size:clamp(25px,4vw,34px);margin:0 0 8px;letter-spacing:-.04em}
+header p{margin:0;color:var(--muted);font-size:15px}
+main{max-width:1120px;margin:0 auto;padding:0 22px 32px}
+.workspace{display:grid;grid-template-columns:1fr 1fr;gap:18px;align-items:start}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:16px;box-shadow:0 5px 18px #6c53300b;min-width:0}
+.panel h2{font-size:17px;margin:0 0 12px}
+.stage{position:relative;width:100%;aspect-ratio:1;background:#fff;border:1px solid #e5e0d8;border-radius:10px;overflow:hidden;display:grid;place-items:center}
+#sourceImage{max-width:100%;max-height:100%;object-fit:contain;display:none}
+.empty{padding:20px;text-align:center;color:#9a9185;font-size:14px;line-height:1.7}
+.empty strong{display:block;color:#6c6256;font-weight:600}
+#drawingStage{touch-action:none;cursor:crosshair}
+#guideImage{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;pointer-events:none;opacity:.3;display:none}
+#drawCanvas{position:absolute;inset:0;width:100%;height:100%;touch-action:none}
+.drop-hint{position:absolute;inset:8px;border:2px dashed transparent;border-radius:8px;pointer-events:none;display:grid;place-items:center;color:#9a9185;font-size:13px}
+.stage.dragover .drop-hint{border-color:#b78a6d;background:#f8f0e8aa}
+.actions,.tools,.settings{display:flex;flex-wrap:wrap;gap:9px;align-items:center;margin-top:12px}
+button,.file-button{border:1px solid #d5c7b5;background:#fffaf2;color:#55483b;padding:9px 13px;border-radius:10px;font:inherit;font-size:13px;cursor:pointer}
+button:hover,.file-button:hover{background:#f3e7d9}
+button.primary{background:#806047;color:white;border-color:#806047}
+button:disabled{opacity:.4;cursor:not-allowed}
+input[type=file]{display:none}
+.tools{padding:12px 0 0;border-top:1px solid #eee6dc}
+.tool-group{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.tool-group label,.settings label{font-size:13px;color:#655b50}
+button.active{background:#806047;color:white;border-color:#806047}
+.palette{display:flex;gap:5px;flex-wrap:wrap;align-items:center}
+.swatch{width:24px;height:24px;padding:0;border-radius:50%;border:2px solid #ffffff;box-shadow:0 0 0 1px #cfc4b6}
+.swatch.selected{box-shadow:0 0 0 2px #6e5844}
+#customColor{width:32px;height:30px;border:0;background:none;padding:0;vertical-align:middle}
+.current-color{width:18px;height:18px;border-radius:50%;display:inline-block;border:1px solid #bbb;vertical-align:middle}
+input[type=range]{accent-color:#8b654a;vertical-align:middle}
+.settings{justify-content:space-between;border-top:1px solid #eee6dc;padding-top:12px}
+.range-wrap{display:flex;align-items:center;gap:8px}
+#titleInput{width:min(100%,340px);padding:10px 12px;border:1px solid #d8cdbb;border-radius:9px;background:#fffdf9;font:inherit}
+.save-row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:14px}
+.note{font-size:12px;line-height:1.6;color:#887e72;margin:16px 2px 0}
+.status{min-height:20px;color:#9b573b;font-size:13px;margin-top:8px}
+.switch{display:flex;align-items:center;gap:7px}
+@media(max-width:700px){header{padding:23px 15px 15px}main{padding:0 15px 25px}.workspace{grid-template-columns:1fr;gap:13px}.panel{padding:13px}.stage{max-width:100%}}
+</style>
+</head>
+<body>
+<header>
+  <h1>따라 그리기 연습장</h1>
+  <p>따라 그릴 이미지를 불러와 오른쪽 칸에 그려 보세요.</p>
+</header>
+<main>
+  <section class="workspace">
+    <article class="panel">
+      <h2>원본</h2>
+      <div class="stage" id="sourceStage">
+        <img id="sourceImage" alt="불러온 원본 이미지">
+        <div class="empty" id="emptyState"><strong>아직 이미지가 없어요.</strong>이미지 선택 버튼을 누르거나<br>여기로 이미지를 끌어다 놓으세요.</div>
+        <div class="drop-hint">여기로 이미지를 끌어다 놓으세요</div>
+      </div>
+      <div class="actions">
+        <label class="file-button" for="imageInput">이미지 선택</label>
+        <input id="imageInput" type="file" accept=".jpg,.jpeg,.png,image/jpeg,image/png">
+      </div>
+    </article>
+    <article class="panel">
+      <h2>내 그림</h2>
+      <div class="stage" id="drawingStage">
+        <img id="guideImage" alt="" aria-hidden="true">
+        <canvas id="drawCanvas"></canvas>
+      </div>
+      <div class="tools">
+        <div class="tool-group">
+          <button id="penBtn" class="active" type="button">펜</button>
+          <button id="eraserBtn" type="button">지우개</button>
+          <button id="undoBtn" type="button" disabled>되돌리기</button>
+        </div>
+      </div>
+      <div class="tools">
+        <div class="tool-group"><label>색상</label><div class="palette" id="palette"></div><label for="customColor">직접 고르기</label><input id="customColor" type="color" value="#000000"><span class="current-color" id="currentColor"></span></div>
+      </div>
+      <div class="settings">
+        <div class="range-wrap"><label for="brushSize">굵기</label><input id="brushSize" type="range" min="1" max="30" value="4"><output id="sizeValue">4</output></div>
+        <div class="switch"><label for="guideToggle">흐린 가이드</label><input id="guideToggle" type="checkbox" checked></div>
+        <div class="range-wrap"><label for="guideOpacity">농도</label><input id="guideOpacity" type="range" min="0" max="100" value="30"><output id="opacityValue">30%</output></div>
+      </div>
+    </article>
+  </section>
+  <div class="save-row">
+    <input id="titleInput" type="text" maxlength="120" placeholder="제목 (비워 두면 나의 따라 그리기)">
+    <button class="primary" id="saveBtn" type="button">이미지로 저장</button>
+  </div>
+  <div class="status" id="status" role="status" aria-live="polite"></div>
+  <p class="note">그린 그림은 이 브라우저 안에서만 처리되며 새로고침하면 사라집니다. 남기려면 PNG로 저장하세요.<br>다른 사람의 작품을 따라 그린 이미지를 올릴 때는 원작자를 직접 밝혀 주세요.</p>
+</main>
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const sourceStage=$('sourceStage'), drawingStage=$('drawingStage'), sourceImage=$('sourceImage');
+  const guideImage=$('guideImage'), canvas=$('drawCanvas'), ctx=canvas.getContext('2d');
+  const status=$('status'), input=$('imageInput');
+  const colors=['#000000','#555555','#e53935','#f57c00','#fdd835','#9ccc65','#2e8b57','#80deea','#1976d2','#7e57c2','#ec6aa9','#8d5a3b'];
+  let source=null, strokes=[], activeStroke=null, drawing=false, tool='pen', color='#000000', size=4, guideOn=true, opacity=.3;
+  let cssWidth=0,cssHeight=0,dpr=1;
+
+  const setStatus = msg => {status.textContent=msg;};
+  function initPalette(){
+    const p=$('palette');
+    colors.forEach(c=>{const b=document.createElement('button');b.type='button';b.className='swatch';b.style.background=c;b.title=c;b.setAttribute('aria-label',c);b.addEventListener('click',()=>setColor(c));p.appendChild(b);});
+    refreshPalette();
+  }
+  function setColor(c){color=c;$('customColor').value=c;$('currentColor').style.background=c;refreshPalette();}
+  function refreshPalette(){[...$('palette').children].forEach(b=>b.classList.toggle('selected',b.title.toLowerCase()===color.toLowerCase()));}
+  function resizeCanvas(){
+    const r=drawingStage.getBoundingClientRect(); if(!r.width)return;
+    const old=document.createElement('canvas'); old.width=canvas.width;old.height=canvas.height;
+    if(old.width&&old.height)old.getContext('2d').drawImage(canvas,0,0);
+    cssWidth=r.width;cssHeight=r.height;dpr=Math.min(window.devicePixelRatio||1,2);
+    canvas.width=Math.round(cssWidth*dpr);canvas.height=Math.round(cssHeight*dpr);
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+    if(old.width&&old.height)ctx.drawImage(old,0,0,old.width,old.height,0,0,cssWidth,cssHeight);
+    renderStrokes();
+  }
+  function fitImage(img, targetCtx, x,y,w,h){
+    const scale=Math.min(w/img.naturalWidth,h/img.naturalHeight);
+    const dw=img.naturalWidth*scale,dh=img.naturalHeight*scale;
+    targetCtx.drawImage(img,x+(w-dw)/2,y+(h-dh)/2,dw,dh);
+  }
+  function renderStrokes(){
+    if(!cssWidth||!cssHeight)return;
+    ctx.clearRect(0,0,cssWidth,cssHeight);
+    for(const s of strokes){
+      if(!s.points.length)continue;
+      ctx.save();ctx.globalCompositeOperation=s.tool==='eraser'?'destination-out':'source-over';
+      ctx.strokeStyle=s.color;ctx.fillStyle=s.color;ctx.lineWidth=s.size;ctx.lineCap='round';ctx.lineJoin='round';
+      if(s.points.length===1){const p=s.points[0];ctx.beginPath();ctx.arc(p.x,p.y,s.size/2,0,Math.PI*2);ctx.fill();}
+      else{ctx.beginPath();ctx.moveTo(s.points[0].x,s.points[0].y);for(let i=1;i<s.points.length;i++)ctx.lineTo(s.points[i].x,s.points[i].y);ctx.stroke();}
+      ctx.restore();
+    }
+    $('undoBtn').disabled=strokes.length===0;
+  }
+  function point(e){const r=canvas.getBoundingClientRect();return{x:e.clientX-r.left,y:e.clientY-r.top};}
+  canvas.addEventListener('pointerdown',e=>{
+    if(!source)return; e.preventDefault();canvas.setPointerCapture(e.pointerId);drawing=true;
+    activeStroke={tool,color,size,points:[point(e)]};strokes.push(activeStroke);if(strokes.length>20)strokes.shift();renderStrokes();
+  });
+  canvas.addEventListener('pointermove',e=>{if(!drawing||!activeStroke)return;e.preventDefault();activeStroke.points.push(point(e));renderStrokes();});
+  function endStroke(){drawing=false;activeStroke=null;}
+  canvas.addEventListener('pointerup',endStroke);canvas.addEventListener('pointercancel',endStroke);canvas.addEventListener('lostpointercapture',endStroke);
+
+  function updateGuide(){
+    guideImage.style.display=source&&guideOn?'block':'none';
+    guideImage.style.opacity=String(opacity);
+    $('guideOpacity').disabled=!guideOn;
+  }
+  function resetDrawing(){strokes=[];renderStrokes();}
+  function loadImageFile(file){
+    if(!file)return;
+    if(!['image/jpeg','image/png'].includes(file.type)){
+      setStatus('JPG, PNG 이미지만 불러올 수 있어요.');input.value='';return;
+    }
+    const reader=new FileReader();
+    reader.onerror=()=>setStatus('이미지를 읽지 못했습니다. 다른 파일을 선택해 주세요.');
+    reader.onload=()=>{
+      const img=new Image();
+      img.onload=()=>{
+        const commit=()=>{source=img;sourceImage.src=reader.result;sourceImage.style.display='block';$('emptyState').style.display='none';guideImage.src=reader.result;resetDrawing();updateGuide();setStatus('원본 이미지를 불러왔습니다.');};
+        if(strokes.length&&source){
+          if(confirm('지금 그린 그림이 사라집니다. 새 이미지를 불러올까요?'))commit();
+          else setStatus('이미지 불러오기를 취소했습니다.');
+        }else commit();
+        input.value='';
+      };
+      img.onerror=()=>setStatus('이미지를 열 수 없습니다. 파일을 확인해 주세요.');
+      img.src=reader.result;
+    };
+    reader.readAsDataURL(file);
+  }
+  input.addEventListener('change',e=>loadImageFile(e.target.files[0]));
+  function setupDrop(el){
+    ['dragenter','dragover'].forEach(ev=>el.addEventListener(ev,e=>{e.preventDefault();el.classList.add('dragover');}));
+    ['dragleave','drop'].forEach(ev=>el.addEventListener(ev,e=>{e.preventDefault();el.classList.remove('dragover');}));
+    el.addEventListener('drop',e=>{const f=[...(e.dataTransfer.files||[])].find(x=>x.type.startsWith('image/'))||e.dataTransfer.files?.[0];loadImageFile(f);});
+  }
+  setupDrop(sourceStage);
+  $('penBtn').addEventListener('click',()=>{tool='pen';$('penBtn').classList.add('active');$('eraserBtn').classList.remove('active');canvas.style.cursor='crosshair';});
+  $('eraserBtn').addEventListener('click',()=>{tool='eraser';$('eraserBtn').classList.add('active');$('penBtn').classList.remove('active');canvas.style.cursor='cell';});
+  $('undoBtn').addEventListener('click',()=>{strokes.pop();renderStrokes();});
+  $('brushSize').addEventListener('input',e=>{size=+e.target.value;$('sizeValue').value=size;});
+  $('customColor').addEventListener('input',e=>setColor(e.target.value));
+  $('guideToggle').addEventListener('change',e=>{guideOn=e.target.checked;updateGuide();});
+  $('guideOpacity').addEventListener('input',e=>{opacity=+e.target.value/100;$('opacityValue').value=e.target.value+'%';updateGuide();});
+
+  function roundedRect(c,x,y,w,h,r){c.beginPath();c.moveTo(x+r,y);c.arcTo(x+w,y,x+w,y+h,r);c.arcTo(x+w,y+h,x,y+h,r);c.arcTo(x,y+h,x,y,r);c.arcTo(x,y,x+w,y,r);c.closePath();}
+  function drawTape(c,x,y,w,angle,fill){c.save();c.translate(x,y);c.rotate(angle);c.fillStyle=fill;c.globalAlpha=.78;c.fillRect(-w/2,-10,w,20);c.globalAlpha=.25;for(let i=-w/2;i<w/2;i+=9){c.strokeStyle='#fff';c.beginPath();c.moveTo(i,-9);c.lineTo(i+5,9);c.stroke();}c.restore();}
+  function renderExport(){
+    const out=document.createElement('canvas');out.width=1080;out.height=1350;const c=out.getContext('2d');
+    c.fillStyle='#f1e8d8';c.fillRect(0,0,1080,1350);
+    // subtle paper grain, generated locally without external assets
+    let seed=20261111;const rand=()=>{seed=(seed*1664525+1013904223)>>>0;return seed/4294967296;};
+    for(let i=0;i<17000;i++){const x=rand()*1080,y=rand()*1350;c.fillStyle=rand()>.5?'rgba(120,94,62,.035)':'rgba(255,255,255,.11)';c.fillRect(x,y,rand()*2+0.4,rand()*2+0.4);}
+    const title=($('titleInput').value.trim()||'나의 따라 그리기');
+    c.fillStyle='#554536';c.textAlign='center';c.font='bold 48px system-ui, sans-serif';c.fillText(title.slice(0,45),540,135,900);
+    drawTape(c,220,75,150,-.12,'#d8b9a0');drawTape(c,850,175,125,.14,'#c5cfae');
+    c.font='34px system-ui';c.fillStyle='#a97860';c.fillText('✦',130,190);c.fillText('♡',930,105);c.fillText('✧',890,245);
+    const photoW=420,photoH=510,photoY=390;
+    function card(x,y,angle,label,kind){
+      c.save();c.translate(x+photoW/2,y+photoH/2);c.rotate(angle);c.shadowColor='rgba(66,48,30,.2)';c.shadowBlur=22;c.shadowOffsetY=12;
+      c.fillStyle='#fffdfa';c.fillRect(-photoW/2,-photoH/2,photoW,photoH);c.shadowColor='transparent';
+      const ix=-photoW/2+22,iy=-photoH/2+22,iw=photoW-44,ih=photoH-100;
+      c.fillStyle='#fff';c.fillRect(ix,iy,iw,ih);
+      if(kind==='source'&&source){fitImage(source,c,ix,iy,iw,ih);}
+      if(kind==='drawing'&&source){
+        fitImage(source,c,ix,iy,iw,ih); // clean base canvas; guide opacity is intentionally excluded
+        const guideScale=Math.min(iw/source.naturalWidth,ih/source.naturalHeight);
+        const dw=source.naturalWidth*guideScale,dh=source.naturalHeight*guideScale;
+        const gx=ix+(iw-dw)/2,gy=iy+(ih-dh)/2;
+        // redraw user strokes at output resolution, scaled from the visible square drawing area
+        const temp=document.createElement('canvas');temp.width=canvas.width;temp.height=canvas.height;
+        const tc=temp.getContext('2d');tc.drawImage(canvas,0,0);
+        // canvas contains only user marks; draw over white paper, cropped to the image's contain rectangle
+        c.save();c.beginPath();c.rect(ix,iy,iw,ih);c.clip();
+        const sq=drawingStage.getBoundingClientRect();
+        const scale= Math.min(iw/sq.width,ih/sq.height);
+        const drawW=sq.width*scale,drawH=sq.height*scale;
+        c.drawImage(temp,0,0,temp.width,temp.height,gx+(iw-drawW)/2,gy+(ih-drawH)/2,drawW,drawH);
+        c.restore();
+      }
+      c.fillStyle='#6a5b4b';c.textAlign='center';c.font='25px system-ui';c.fillText(label,0,photoH/2-36);
+      c.restore();
+    }
+    card(95,345,-.055,'원본','source');card(565,365,.045,'내 그림','drawing');
+    c.fillStyle='#806b55';c.textAlign='center';c.font='24px system-ui';c.fillText('따라 그리기 연습장',540,1160);
+    const now=new Date();const date=`${now.getFullYear()}. ${String(now.getMonth()+1).padStart(2,'0')}. ${String(now.getDate()).padStart(2,'0')}.`;
+    c.save();c.translate(540,1240);c.rotate(-.025);c.strokeStyle='#9e8066';c.lineWidth=3;c.setLineDash([5,4]);roundedRect(c,-125,-32,250,64,8);c.stroke();c.setLineDash([]);c.fillStyle='#8b6c53';c.font='bold 26px system-ui';c.fillText(date,0,9);c.restore();
+    return out;
+  }
+  $('saveBtn').addEventListener('click',()=>{
+    if(!source){setStatus('먼저 따라 그릴 이미지를 불러오세요.');return;}
+    const out=renderExport(),now=new Date();
+    const dateTime=`${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}-${String(now.getHours()).padStart(2,'0')}${String(now.getMinutes()).padStart(2,'0')}${String(now.getSeconds()).padStart(2,'0')}`;
+    const safe=($('titleInput').value.trim()||'나의 따라 그리기').replace(/[\/\\:*?"<>|]/g,'_').slice(0,40);
+    out.toBlob(blob=>{
+      if(!blob){setStatus('PNG를 만들지 못했습니다.');return;}
+      const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=`${safe}_${dateTime}.png`;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1500);
+      setStatus('1080×1350 PNG 파일을 저장했습니다.');
+    },'image/png');
+  });
+  initPalette();setColor('#000000');
+  if('ResizeObserver'in window)new ResizeObserver(resizeCanvas).observe(drawingStage);else window.addEventListener('resize',resizeCanvas);
+  requestAnimationFrame(resizeCanvas);
+})();
+</script>
+</body>
+</html>
